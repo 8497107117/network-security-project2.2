@@ -61,3 +61,87 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock2CA:
     msg_size = struct.unpack('i', sock2CA.recv(4))
     received = str(sock2CA.recv(int(msg_size[0])), "utf-8")
     print('CA send ', received)
+
+###############
+print('---------------------------')
+print('-------I am divider--------')
+print('---------------------------')
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock2GD:
+    # Connect to GameDownloader
+    sock2GD.connect((HOST, GD_PORT))
+
+    # Send ID to GD
+    msg_size = len("0216023")
+    byte_msg_size = struct.pack("i", msg_size)
+    sock2GD.sendall(byte_msg_size)
+    sock2GD.sendall(bytes("0216023", 'utf-8'))
+    print('I send 0216023 to GD')
+
+    # Receive hello from GD
+    msg_size = struct.unpack('i', sock2GD.recv(4))
+    received = str(sock2GD.recv(int(msg_size[0])), "utf-8")
+    print('GD send ', received)
+
+    # Certificate PEM file
+    msg_size = len(CERT)
+    byte_msg_size = struct.pack('i', msg_size)
+    sock2GD.sendall(byte_msg_size)
+    sock2GD.sendall(bytes(CERT, 'utf-8'))
+    print('I send Certificate PEM file to GD :\n', str(CERT))
+
+    # Receive PASS from GD
+    msg_size = struct.unpack('i', sock2GD.recv(4))
+    received = str(sock2GD.recv(int(msg_size[0])), "utf-8")
+    print('GD send ', received)
+
+    # Receive AES Session Key from GD
+    msg_size = struct.unpack('i', sock2GD.recv(4))
+    encryptedAESKey = sock2GD.recv(int(msg_size[0]))
+    print('Received C1 from GD :\n', encryptedAESKey)
+    with open('private.pem', 'rb') as f:
+        myPriKey = serialization.load_pem_private_key(
+            f.read(),
+            password=None, 
+            backend=default_backend()
+        )
+        f.close()
+    AESKey = myPriKey.decrypt(
+        encryptedAESKey,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA1()),
+            algorithm=hashes.SHA1(),
+            label=None
+        )
+    )
+    print('GD\'s AES Session Key :\n', AESKey)
+
+    # Receive Initial Vector from GD
+    msg_size = struct.unpack('i', sock2GD.recv(4))
+    encryptedIV = sock2GD.recv(int(msg_size[0]))
+    print('Received C1 from GD :\n', encryptedIV)
+    IV = myPriKey.decrypt(
+        encryptedIV,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA1()),
+            algorithm=hashes.SHA1(),
+            label=None
+        )
+    )
+    print('Initial Vector :\n', IV)
+
+    # Receive request from GD
+    msg_size = struct.unpack('i', sock2GD.recv(4))
+    encryptedReq = sock2GD.recv(int(msg_size[0]))
+    print('Received C1 :\n', encryptedReq)
+    cipher = Cipher(algorithms.AES(AESKey), modes.CBC(IV), backend=default_backend())
+    decryptor = cipher.decryptor()
+    GameBin = decryptor.update(encryptedReq)
+    print('Game binary :\n', str(GameBin))
+
+    # Send bye to GD
+    msg_size = len("bye")
+    byte_msg_size = struct.pack("i", msg_size)
+    sock2GD.sendall(byte_msg_size)
+    sock2GD.sendall(bytes("bye", 'utf-8'))
+    print('I send bye to GD')
