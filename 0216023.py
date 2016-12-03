@@ -136,8 +136,10 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock2GD:
     print('Received C1 :\n', encryptedReq)
     cipher = Cipher(algorithms.AES(AESKey), modes.CBC(IV), backend=default_backend())
     decryptor = cipher.decryptor()
-    GameBin = decryptor.update(encryptedReq)
+    GameBin = decryptor.update(encryptedReq) + decryptor.finalize()
     print('Game binary :\n', str(GameBin))
+    with open("game", "bw+") as f:
+        f.write(bytes(str(GameBin), 'utf-8'))
 
     # Send bye to GD
     msg_size = len("bye")
