@@ -133,13 +133,15 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock2GD:
     # Receive request from GD
     msg_size = struct.unpack('i', sock2GD.recv(4))
     encryptedReq = sock2GD.recv(int(msg_size[0]))
+    while len(encryptedReq) < msg_size[0]:
+        encryptedReq += sock2GD.recv(int(msg_size[0]))
     print('Received C1 :\n', encryptedReq)
     cipher = Cipher(algorithms.AES(AESKey), modes.CBC(IV), backend=default_backend())
     decryptor = cipher.decryptor()
     GameBin = decryptor.update(encryptedReq) + decryptor.finalize()
-    print('Game binary :\n', str(GameBin))
-    with open("game", "bw+") as f:
-        f.write(bytes(str(GameBin), 'utf-8'))
+    print('Game binary :\n', GameBin)
+    with open("game", "wb") as f:
+        f.write(GameBin)
 
     # Send bye to GD
     msg_size = len("bye")
